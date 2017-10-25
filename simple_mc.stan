@@ -24,7 +24,10 @@ parameters {
 }
 
 model {
-  // no priors -> use Stan defaults
+  // priors for regression coefficients
+  alpha ~ normal(0, 2.5);
+  alphaA ~ normal(0, 2.5);
+  
   // likelihood
   Y ~ bernoulli_logit(X * alpha + A * alphaA);
 }
@@ -42,7 +45,8 @@ generated quantities {
     Y_a1[n] = bernoulli_logit_rng(X[n] * alpha + alphaA);
     Y_a0[n] = bernoulli_logit_rng(X[n] * alpha);
 
-    // add this observation's contribution to the bootstrapped ATE
+    // add contribution of this observation to the bootstrapped ATE
     ATE = ATE + (counts[n] * (Y_a1[n] - Y_a0[n]))/N;
   }
 }
+
