@@ -1,7 +1,7 @@
 ---
 title: 'StanCon 2018: Causal inference with the g-formula in Stan'
 author: "Leah Comment"
-date: "9/7/2017"
+date: "9/7/2017 (updated 10/24/2017)"
 output:
   pdf_document: default
 header-includes:
@@ -126,7 +126,7 @@ fATE <- mean(plogis(cbind(1, simple_df$Z1, simple_df$Z2, 1) %*% fcoef) -
 
 # A demonstration of the Bayesian g-formula in Stan
 
-The Stan code to obtain the ATE is shown below.
+The Stan code to obtain the ATE is shown below. One could adopt Stan's default flat priors for the elements of $\boldsymbol{\theta} = (\boldsymbol{\alpha}, \alpha_A)$. Instead, we choose to place greater prior mass on the range of plausible values for coefficients on the log-odds scale. For binary covariates, independent $\mathcal{N}(0, 2.5)$ priors on all coefficients effectively rule out implausibly strong effects (e.g., log-odds ratios of 3, which would correspond to the enormous odds ratio of $e^3$ or $\approx 20$). With non-rare outcomes, the same prior can be chosen for the intercept of the regression model since log-odds of $\pm 3$ correspond to reference level event probabilities of $\approx 0.05$ or 0.95.
 ```{r, code = readLines("simple_mc.stan"), eval = FALSE}
 ```
 
@@ -147,6 +147,8 @@ bATE <- mean(extract(fit1)[["ATE"]])
 ```
 
 The posterior mean ATE is `r bATE`, which is compatible with the frequentist estimate of `r fATE`.
+
+TODO(LCOMM): marginalizing over a continuous $Z$ instead of bootstrapping
 
 # Another demonstration: the g-formula applied to mediation
 
@@ -225,6 +227,9 @@ M_a^{(i,b)} \sim \mathrm{Bernoulli}\left(
 $$
 
 Stan code to fit these models is shown below.
+
+TODO(LCOMM): Decide about prior specification for simple mediator model.
+
 ```{r, code = readLines("mediation_mc.stan"), eval = FALSE}
 ```
 
@@ -256,6 +261,32 @@ $$
 $$
 \mathrm{logit}\left( P(Y_{i}=1|A_i,M_i,U_i,\mathbf{Z}_i) \right) = \alpha_0 + \boldsymbol{\alpha}_Z' \mathbf{Z}_i + \alpha_U U_i + \alpha_A A_i + \alpha_M M_i
 $$
+Let $\boldsymbol{\alpha} = (\alpha_0, \boldsymbol{\alpha}_Z, \alpha_U, \alpha_A, \alpha_M)'$, $\boldsymbol{\beta} = (\beta_0, \boldsymbol{\beta}_Z, \beta_U, \beta_A)'$, and $\boldsymbol{\gamma} = (\gamma_0, \boldsymbol{\gamma}_Z)'$. Denote the full regression coefficient parameter vector $(\boldsymbol{\alpha}, \boldsymbol{\beta}, \boldsymbol{\gamma})$ by $\boldsymbol{\theta}$. Had $U$ been observed, the joint data likelihood for $n$ observations would be
+
+$$
+\prod_{i=1}^n 
+f(y_i | \boldsymbol{\alpha}, \mathbf{z}_i, a_i, m_i, u_i) 
+f(m_i | \boldsymbol{\beta}, \mathbf{z}_i, a_i, u_i) 
+f(u_i | \boldsymbol{\gamma}, \mathbf{z}_i, a_i) 
+$$
+Since $U$ is binary, this can be rewritten as
+$$
+\prod_{i=1}^n 
+f(y_i | \boldsymbol{\alpha}, \mathbf{z}_i, a_i, m_i, u_i) 
+f(m_i | \boldsymbol{\beta}, \mathbf{z}_i, a_i, u_i) 
+P(U_i = u_i | \boldsymbol{\gamma}, \mathbf{z}_i, a_i) 
+$$
+To marginalize over the unobserved $U_i$, we sum over $u = 0$ and $u=1$ to obtain:
+$$
+\prod_{i=1}^n
+\left[
+\sum_{u=0}^1 f(y_i | \boldsymbol{\alpha}, \mathbf{z}_i, a_i, m_i, u_i = u) 
+f(m_i | \boldsymbol{\beta}, \mathbf{z}_i, a_i, u_i = u) 
+P(U_i = u | \boldsymbol{\gamma}, \mathbf{z}_i, a_i)
+\right]
+$$
+
+TODO(LCOMM): decide if I have to go back to other marginalization strategy used for categorical mediator
 
 Informative prior distributions are derived from the maximum likelihood point estimates and variance-covariance matrices from the secondary data source. For example, the prior for $\boldsymbol{\gamma} = (\gamma_0, \boldsymbol{\gamma}_Z)'$ would be 
 
@@ -319,6 +350,12 @@ traceplot(fit3, pars=c("NDE"))
 summary(extract(fit3)[["NDE"]])
 ```
 
+TODO(LCOMM): Add data privacy rationale for separation of stages.
+
+TODO(LCOMM): Add part about extensions with combined data set to allow for non-conjugate priors (code up example?).
+
 # Summary
 
 Stan's `generated quantities` block offers a straightforward way to apply the g-formula to Bayesian models, including models for mediation. Incorporating prior information from another data source may partially address problems due to unmeasured confounding.
+
+TODO(LCOMM): Figure out where/how to add references.
