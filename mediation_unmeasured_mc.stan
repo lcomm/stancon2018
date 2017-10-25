@@ -98,7 +98,7 @@ generated quantities {
     Y_a0Ma0[n] = bernoulli_rng(inv_logit(X[n] * alphaZ + M[n] * alphaM + alphaU)*pU1[n] +
                                  inv_logit(X[n] * alphaZ + M[n] * alphaM)*(1-pU1[n]));
     
-    // add this observation's contribution to the bootstrapped NDE
+    // add contribution of this observation to the bootstrapped NDE
     NDE = NDE + (counts[n] * (Y_a1Ma0[n] - Y_a0Ma0[n]))/N;
   }
 }

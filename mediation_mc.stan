@@ -57,7 +57,7 @@ generated quantities {
     Y_a1Ma0[n] = bernoulli_logit_rng(X[n] * alpha + M_a0[n] * alphaM + alphaA);
     Y_a0Ma0[n] = bernoulli_logit_rng(X[n] * alpha + M_a0[n] * alphaM);
 
-    // add this observation's contribution to the bootstrapped NDE
+    // add contribution of this observation to the bootstrapped NDE
     NDE = NDE + (counts[n] * (Y_a1Ma0[n] - Y_a0Ma0[n]))/N;
   }
 }
