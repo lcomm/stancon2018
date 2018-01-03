@@ -1,7 +1,7 @@
 ---
 title: 'StanCon 2018: Causal inference with the g-formula in Stan'
 author: "Leah Comment"
-date: "9/7/2017 (updated 10/24/2017)"
+date: "9/7/2017 (updated 1/02/2018)"
 output:
   pdf_document: default
 header-includes:
@@ -55,7 +55,7 @@ Suppose we have measured counfounders $\mathbf{Z}$ and the true causal diagram l
 \begin{tikzpicture}[node distance = 1cm]
 \node (A) {$A$};
 \node[right=of A] (Y) {$Y$};
-\node[above=of A] (Z) {$\mathbf{Z}$};
+\node[above left=of A] (Z) {$\mathbf{Z}$};
 \draw[->] (A) -- (Y);
 \draw[->] (Z) -- (A);
 \draw[->] (Z) -- (Y);
@@ -95,7 +95,7 @@ Posterior summaries of the $ATE$ can be obtained by taking the mean or quantiles
 # Simulating some data
 ```{r}
 # Simulate simple binary data with confounders situation
-simulate_simple <- function(n){
+simulate_simple <- function(n) {
   Z1 <- rbinom(n = n, size = 1, prob = 0.3)
   Z2 <- rbinom(n = n, size = 1, prob = plogis(0 + 0.2*Z1))
   A  <- rbinom(n = n, size = 1, prob = plogis(-1 + 0.7*Z1 + 0.8*Z2))
@@ -122,6 +122,7 @@ ffit1 <- glm(Y ~ 1 + Z1 + Z2 + A, family = binomial(link = "logit"), data = simp
 fcoef <- coef(ffit1)
 fATE <- mean(plogis(cbind(1, simple_df$Z1, simple_df$Z2, 1) %*% fcoef) - 
              plogis(cbind(1, simple_df$Z1, simple_df$Z2, 0) %*% fcoef))
+print(fATE)
 ```
 
 # A demonstration of the Bayesian g-formula in Stan
@@ -162,7 +163,7 @@ Mediators are intermediate variables on the causal path between the exposure and
 \node (A) {$A$};
 \node[right=of A] (M) {$M$};
 \node[right=of M] (Y) {$Y$};
-\node[above=of A] (Z) {$\mathbf{Z}$};
+\node[above left=of A] (Z) {$\mathbf{Z}$};
 \draw[->] (A) -- (M);
 \draw[->] (M) -- (Y);
 \draw[->] (A) to [out=330,in=210] (Y);
@@ -177,7 +178,7 @@ One potential question in causal inference is the degree to which an effect woul
 
 ```{r}
 # Function to simulate data for mediation
-simulate_simple_med <- function(n){
+simulate_simple_med <- function(n) {
   Z1 <- rbinom(n = n, size = 1, prob = 0.3)
   Z2 <- rbinom(n = n, size = 1, prob = plogis(0 + 0.2*Z1))
   A  <- rbinom(n = n, size = 1, prob = plogis(-1 + 0.7*Z1 + 0.8*Z2))
@@ -189,12 +190,17 @@ simulate_simple_med <- function(n){
 med_df <- simulate_simple_med(n = 5000)
 
 # Package data for Stan
+# Last 6 arguments specify weakly informative priors on coefficients
 med_dat <- list(N = nrow(med_df), 
                 P = 3,
                 X = cbind(1, med_df$Z1, med_df$Z2),
                 A = med_df$A,
                 M = med_df$M,
-                Y = med_df$Y)
+                Y = med_df$Y,
+                alpha_m = rep(0, 5),
+                beta_m = rep(0, 4),
+                alpha_vcv = 2.5 * diag(5),
+                beta_vcv = 2.5 * diag(4))
 ```
 
 The mediator gets added to the outcome model:
@@ -216,7 +222,7 @@ M_a^{(i,b)} \sim \mathrm{Bernoulli}\left(
 \right)
 $$
 
-The outcome counterfactuals $Y_{aM_a}$ and $Y_{aM_{a^*}}$ represent the potential outcome values under regime $A=a$ when the mediator $M$ is set to the value it would naturally take under either $a$ or $a^*$. For example, we may be interested in the hypothetical outcomes if the population were exposed (i.e., all $A=1$) while the path through $M$ is somehow disabled $M = M_{a=0}$. This contrast is sometimes referred to as a natural direct effect because it captures the effect of $A$ on $Y$ that is "direct" -- that is, the effect _not_ through the mediator.
+The outcome counterfactuals $Y_{aM_a}$ and $Y_{aM_{a^*}}$ represent the potential outcome values under regime $A=a$ when the mediator $M$ is set to the value it would naturally take under either $a$ or $a^*$. For example, we may be interested in the hypothetical outcomes if the population were exposed (i.e., all $A=1$) while the path through $M$ is somehow disabled (i.e., $M = M_{a=0}$). This contrast is sometimes referred to as a natural direct effect because it captures the effect of $A$ on $Y$ that is "direct" -- that is, the effect _not_ through the mediator.
 
 $$
 M_a^{(i,b)} \sim \mathrm{Bernoulli}\left(
@@ -227,8 +233,6 @@ M_a^{(i,b)} \sim \mathrm{Bernoulli}\left(
 $$
 
 Stan code to fit these models is shown below.
-
-TODO(LCOMM): Decide about prior specification for simple mediator model.
 
 ```{r, code = readLines("mediation_mc.stan"), eval = FALSE}
 ```
@@ -251,7 +255,7 @@ While the above models demonstrate application of the parametric g-formula for m
 We can simulate data using the same function as the previous mediation example, renaming $Z_2$ to $U$ because it is unmeasured. (In our simulated data, $\mathbf{Z}$ will no longer be a vector of covariates, but we keep the more general notation since $\mathbf{Z}$ may be vector-valued.) We also add a model for $U$, giving model equations
 
 $$
-\mathrm{logit}\left( P(U_{i}=1|\mathbf{Z}_i) \right) = \gamma_0 + \boldsymbol{\gamma}_Z' \mathbf{Z}_i
+\mathrm{logit}\left( P(U_{i}=1|\mathbf{Z}_i, A_i) \right) = \gamma_0 + \boldsymbol{\gamma}_Z' \mathbf{Z}_i
 $$
 
 $$
@@ -267,14 +271,14 @@ $$
 \prod_{i=1}^n 
 f(y_i | \boldsymbol{\alpha}, \mathbf{z}_i, a_i, m_i, u_i) 
 f(m_i | \boldsymbol{\beta}, \mathbf{z}_i, a_i, u_i) 
-f(u_i | \boldsymbol{\gamma}, \mathbf{z}_i, a_i) 
+f(u_i | \boldsymbol{\gamma}, \mathbf{z}_i) 
 $$
 Since $U$ is binary, this can be rewritten as
 $$
 \prod_{i=1}^n 
 f(y_i | \boldsymbol{\alpha}, \mathbf{z}_i, a_i, m_i, u_i) 
 f(m_i | \boldsymbol{\beta}, \mathbf{z}_i, a_i, u_i) 
-P(U_i = u_i | \boldsymbol{\gamma}, \mathbf{z}_i, a_i) 
+P(U_i = u_i | \boldsymbol{\gamma}, \mathbf{z}_i) 
 $$
 To marginalize over the unobserved $U_i$, we sum over $u = 0$ and $u=1$ to obtain:
 $$
@@ -282,11 +286,22 @@ $$
 \left[
 \sum_{u=0}^1 f(y_i | \boldsymbol{\alpha}, \mathbf{z}_i, a_i, m_i, u_i = u) 
 f(m_i | \boldsymbol{\beta}, \mathbf{z}_i, a_i, u_i = u) 
-P(U_i = u | \boldsymbol{\gamma}, \mathbf{z}_i, a_i)
+P(U_i = u | \boldsymbol{\gamma}, \mathbf{z}_i)
 \right]
 $$
 
-TODO(LCOMM): decide if I have to go back to other marginalization strategy used for categorical mediator
+With binary $M$ and $Y$, this becomes
+$$
+\prod_{i=1}^n
+\left[
+\sum_{u=0}^1 
+\left(\pi^Y_i(u)\right)^{y_i} \left(1 - \pi^Y_i(u)\right)^{1 - y_i}
+\left(\pi^M_i(u)\right)^{m_i} \left(1 - \pi^M_i(u)\right)^{1 - m_i}
+P(U_i = u | \boldsymbol{\gamma}, \mathbf{z}_i, a_i)
+\right]
+$$
+where $\pi^Y_i(u) = P(Y_i = 1 | \boldsymbol{\alpha}, \mathbf{Z}_i, A_i, M_i, U_i = u)$ and $\pi^M_i(u) = P(M_i = 1 | \boldsymbol{\beta}, \mathbf{Z}_i, A_i, U_i = u)$.
+
 
 Informative prior distributions are derived from the maximum likelihood point estimates and variance-covariance matrices from the secondary data source. For example, the prior for $\boldsymbol{\gamma} = (\gamma_0, \boldsymbol{\gamma}_Z)'$ would be 
 
