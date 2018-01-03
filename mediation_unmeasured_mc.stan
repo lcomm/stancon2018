@@ -62,16 +62,48 @@ transformed parameters {
 }
 
 model {
+  // linear predictors
+  // U regression
+  vector[N] eta_u;
+  // M regression, if U = 0
+  vector[N] eta_mu0;
+  // Y regression, if U = 0
+  vector[N] eta_yu0;
+  
+  // log-likelihood contributions for U = 0 and U = 1 cases
+  real ll_0;
+  real ll_1; 
+  
+  // calculate linear predictors for U = 0 case
+  // will selectively add on betaU and alphaU as needed
+  eta_u = X * gamma;
+  eta_mu0 = X * betaZ + A * betaA;
+  eta_yu0 = X * alphaZ + A * alphaA + Mv * alphaM;
+  
   // informative priors
   alpha ~ multi_normal(alpha_m, alpha_vcv);
   beta  ~ multi_normal(beta_m, beta_vcv);
   gamma ~ multi_normal(gamma_m, gamma_vcv);
   
-  // likelihoods
-  M ~ bernoulli(inv_logit(X * betaZ + A * betaA + betaU).*pU1 + 
-                  inv_logit(X * betaZ + A * betaA).*(1-pU1));
-  Y ~ bernoulli(inv_logit(X * alphaZ + A * alphaA + Mv * alphaM + alphaU).*pU1 +
-                  inv_logit(X * alphaZ + A * alphaA + Mv * alphaM).*(1-pU1));
+  // likelihood
+  for (n in 1:N) {
+    // contribution if U = 0
+    ll_0 = log_inv_logit(eta_yu0[n]) * Y[n] + 
+           log1m_inv_logit(eta_yu0[n]) * (1 - Y[n]) + 
+           log_inv_logit(eta_mu0[n]) * M[n] + 
+           log1m_inv_logit(eta_mu0[n]) * (1 - M[n]) + 
+           log1m_inv_logit(eta_u[n]);
+          
+    // contribution if U = 1
+    ll_1 = log_inv_logit(eta_yu0[n] + alphaU) * Y[n] + 
+           log1m_inv_logit(eta_yu0[n] + alphaU) * (1 - Y[n]) + 
+           log_inv_logit(eta_mu0[n] + betaU) * M[n] + 
+           log1m_inv_logit(eta_mu0[n] + betaU) * (1 - M[n]) + 
+           log_inv_logit(eta_u[n]);
+    
+    // contribution is summation over U possibilities
+    target += log_sum_exp(ll_0, ll_1);
+  }
 }
 
 generated quantities {
@@ -88,16 +120,15 @@ generated quantities {
     // sample U
     U[n] = bernoulli_logit_rng(pU1[n]);
     
-    // sample Ma where a = 0
-    M_a0[n] = bernoulli_rng(inv_logit(X[n] * betaZ + A[n] * betaA + betaU)*pU1[n] + 
-                              inv_logit(X[n] * betaZ + A[n] * betaA)*(1-pU1[n]));
+    // sample M_a where a = 0
+    M_a0[n] = bernoulli_logit_rng(X[n] * betaZ + U[n] * betaU);
     
-    // sample Y_(a=1, M=M_0) and Y_(a=0, M=M_0)
-    Y_a1Ma0[n] = bernoulli_rng(inv_logit(X[n] * alphaZ + alphaA + M[n] * alphaM + alphaU)*pU1[n] +
-                                 inv_logit(X[n] * alphaZ + alphaA + M[n] * alphaM)*(1-pU1[n]));
-    Y_a0Ma0[n] = bernoulli_rng(inv_logit(X[n] * alphaZ + M[n] * alphaM + alphaU)*pU1[n] +
-                                 inv_logit(X[n] * alphaZ + M[n] * alphaM)*(1-pU1[n]));
-    
+    // sample Y_(a=0, M=M_0) and Y_(a=1, M=M_0)
+    Y_a0Ma0[n] = bernoulli_logit_rng(X[n] * alphaZ + M_a0[n] * alphaM + 
+                                     U[n] * alphaU);
+    Y_a1Ma0[n] = bernoulli_logit_rng(X[n] * alphaZ + M_a0[n] * alphaM + alphaA +
+                                     U[n] * alphaU);
+                                                          
     // add contribution of this observation to the bootstrapped NDE
     NDE = NDE + (counts[n] * (Y_a1Ma0[n] - Y_a0Ma0[n]))/N;
   }

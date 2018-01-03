@@ -19,17 +19,22 @@ transformed data {
 
 parameters {
   // regression coefficients
-  vector[P] alpha;
-  real alphaA;
+  vector[P + 1] alpha;
+}
+
+transformed parameters {
+  vector[P] alphaZ = head(alpha, P);
+  real alphaA = alpha[P + 1];
 }
 
 model {
   // priors for regression coefficients
-  alpha ~ normal(0, 2.5);
-  alphaA ~ normal(0, 2.5);
+  for (p in 1:(P + 1)) {
+    alpha[p] ~ normal(0, 2.5);
+  }
   
   // likelihood
-  Y ~ bernoulli_logit(X * alpha + A * alphaA);
+  Y ~ bernoulli_logit(X * alphaZ + A * alphaA);
 }
 
 generated quantities {
@@ -42,8 +47,8 @@ generated quantities {
   vector[N] Y_a0;
   for (n in 1:N) {
     // sample Ya where a = 1 and a = 0
-    Y_a1[n] = bernoulli_logit_rng(X[n] * alpha + alphaA);
-    Y_a0[n] = bernoulli_logit_rng(X[n] * alpha);
+    Y_a1[n] = bernoulli_logit_rng(X[n] * alphaZ + alphaA);
+    Y_a0[n] = bernoulli_logit_rng(X[n] * alphaZ);
 
     // add contribution of this observation to the bootstrapped ATE
     ATE = ATE + (counts[n] * (Y_a1[n] - Y_a0[n]))/N;
