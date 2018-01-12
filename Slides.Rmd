@@ -235,7 +235,7 @@ generated quantities {
 
 # Simple example: more on the ATE calculation
 
-- Remember: we want $\mathbb{E}\left[ Y_1 \right] - \mathbb{E}\left[ Y_1 \right]$, which marginalizes over $\mathbf{Z}$
+- Remember: we want $\mathbb{E}\left[ Y_1 \right] - \mathbb{E}\left[ Y_0 \right]$, which marginalizes over $\mathbf{Z}$
 
 - Weighted average of causal effects for different $\mathbf{Z}$ values (like $P(\mathbf{Z}=\mathbf{z})$ in the frequentist g-formula)
 
