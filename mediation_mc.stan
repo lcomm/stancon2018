@@ -21,8 +21,7 @@ data {
 
 transformed data {
   // make vector of 1/N for (classical) bootstrapping
-  real one = 1;
-  vector[N] boot_probs = rep_vector(one/N, N);
+  vector[N] boot_probs = rep_vector(1.0/N, N);
 
   // make vector version of M
   vector[N] Mv = to_vector(M);
@@ -58,8 +57,8 @@ model {
 }
 
 generated quantities {
-  // weights for the bootstrap
-  int<lower=0> counts[N] = multinomial_rng(boot_probs, N);
+  // row index to be sampled for bootstrap
+  int row_i;
 
   // calculate NDE in the bootstrapped sample
   real NDE = 0;
@@ -67,15 +66,19 @@ generated quantities {
   vector[N] Y_a1Ma0;
   vector[N] Y_a0Ma0;
   for (n in 1:N) {
+    // sample baseline covariates
+    row_i = categorical_rng(boot_probs);
+    
     // sample Ma where a = 0
-    M_a0[n] = bernoulli_logit_rng(X[n] * betaZ);
+    M_a0[n] = bernoulli_logit_rng(X[row_i] * betaZ);
 
     // sample Y_(a=1, M=M_0) and Y_(a=0, M=M_0)
-    Y_a1Ma0[n] = bernoulli_logit_rng(X[n] * alphaZ + M_a0[n] * alphaM + alphaA);
-    Y_a0Ma0[n] = bernoulli_logit_rng(X[n] * alphaZ + M_a0[n] * alphaM);
+    Y_a1Ma0[n] = bernoulli_logit_rng(X[row_i] * alphaZ + M_a0[n] * alphaM + 
+                                     alphaA);
+    Y_a0Ma0[n] = bernoulli_logit_rng(X[row_i] * alphaZ + M_a0[n] * alphaM);
 
     // add contribution of this observation to the bootstrapped NDE
-    NDE = NDE + (counts[n] * (Y_a1Ma0[n] - Y_a0Ma0[n]))/N;
+    NDE = NDE + (Y_a1Ma0[n] - Y_a0Ma0[n])/N;
   }
 }
 

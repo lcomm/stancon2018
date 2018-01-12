@@ -23,6 +23,19 @@ nocite: |
 knitr::opts_chunk$set(echo = FALSE, size = "tiny", highlight = FALSE)
 ```
 
+# Presentation information
+
+[\textcolor{blue}{https://github.com/lcomm/stancon2018}](https://github.com/lcomm/stancon2018)
+
+\vspace{5mm}
+
+You'll find:
+
+- These slides
+
+- A document with more details on motivation and implementation
+
+- Stan code files for all models shown here
 
 # Crash course on causal inference
 
@@ -65,14 +78,14 @@ knitr::opts_chunk$set(echo = FALSE, size = "tiny", highlight = FALSE)
 
 # The g-formula for standardization
 
-\[ \textbf{g-formula:} \hspace{5mm} \mathbb{E}\left[ Y_a \right] = \sum_{z} \mathbb{E}\left[ Y | A = a, Z = z \right] P(Z = z) \]
+\[ \textbf{g-formula:} \hspace{5mm} \mathbb{E}\left[ Y_a \right] = \sum_{\mathbf{z}} \mathbb{E}\left[ Y | A = a, \mathbf{Z} = \mathbf{z} \right] P(\mathbf{Z} = \mathbf{z}) \]
 
-- This requires no unmeasured confounding given $Z$: $Y_a \perp\!\!\!\perp A | Z$
+- This requires no unmeasured confounding given $\mathbf{Z}$: $Y_a \perp\!\!\!\perp A | \mathbf{Z}$
 
 - Average treatment effect of changing $A$ from $a$ to $a^*$ for whole population:
 $\mathbb{E}\left[ Y_{a^*} \right] - \mathbb{E}\left[ Y_{a} \right]$
 
-- Common (frequentist) approach is to adopt parameteric models for $Y|A,Z$ and use empirical distribution of $Z$ for $P(Z=z)$
+- Common (frequentist) approach is to adopt parametric models for $Y|A,\mathbf{Z}$ and use empirical distribution of $\mathbf{Z}$ for $P(\mathbf{Z}=\mathbf{z})$
 
 - Frequentist bootstrap used for inference
 
@@ -80,7 +93,7 @@ $\mathbb{E}\left[ Y_{a^*} \right] - \mathbb{E}\left[ Y_{a} \right]$
 
 Adopting parametric models indexed by $\boldsymbol{\theta}$, the Bayesian g-formula is:
 
-\[ p(y_a| o)
+\[ p(\tilde{y}_a| o)
 = \int \int p(\tilde{y} | a, \tilde{\mathbf{z}}, \theta) p(\tilde{\mathbf{z}} | \boldsymbol{\theta}) p(\boldsymbol{\theta} | o) 
 d\boldsymbol{\theta} d\tilde{\mathbf{z}} \]
 
@@ -104,7 +117,7 @@ Two components to Bayesian causal inference with the g-formula:
     - Fit parametric models in `model` block
 
 - Do causal inference using posterior predictive draws of potential outcomes
-    - Use confounder distribution from `data` block (may or may not be same data)
+    - Use confounder distribution from `data` block (may or may not be same data used to fit the model)
     - Sample potential outcomes in the `generated quantities` block
 
 # A simple example
@@ -134,7 +147,7 @@ Assume $Y$ is generated according to logistic model:
 
 # Simple example: code
 
-[https://github.com/lcomm/stancon2018/simple_mc.stan](https://github.com/lcomm/stancon2018/simple_mc.stan)
+[\textcolor{blue}{https://github.com/lcomm/stancon2018/simple\_mc.stan}](https://github.com/lcomm/stancon2018/simple_mc.stan)
 
 ```{r sc1, eval = FALSE, echo = TRUE}
 data {
@@ -153,19 +166,18 @@ data {
 
 # Simple example: code
 
-[https://github.com/lcomm/stancon2018/simple_mc.stan](https://github.com/lcomm/stancon2018/simple_mc.stan)
+[\textcolor{blue}{https://github.com/lcomm/stancon2018/simple\_mc.stan}](https://github.com/lcomm/stancon2018/simple_mc.stan)
 
 ```{r, eval = FALSE, echo = TRUE}
 transformed data {
   // make vector of 1/N for (classical) bootstrapping
-  real one = 1;
-  vector[N] boot_probs = rep_vector(one/N, N);
+  vector[N] boot_probs = rep_vector(1.0/N, N);
 }
 ```
 
 # Simple example: code
 
-[https://github.com/lcomm/stancon2018/simple_mc.stan](https://github.com/lcomm/stancon2018/simple_mc.stan)
+[\textcolor{blue}{https://github.com/lcomm/stancon2018/simple\_mc.stan}](https://github.com/lcomm/stancon2018/simple_mc.stan)
 
 ```{r, eval = FALSE, echo = TRUE}
 parameters {
@@ -182,14 +194,12 @@ transformed parameters {
 
 # Simple example: code
 
-[https://github.com/lcomm/stancon2018/simple_mc.stan](https://github.com/lcomm/stancon2018/simple_mc.stan)
+[\textcolor{blue}{https://github.com/lcomm/stancon2018/simple\_mc.stan}](https://github.com/lcomm/stancon2018/simple_mc.stan)
 
 ```{r, eval = FALSE, echo = TRUE}
 model {
   // priors for regression coefficients
-  for (p in 1:(P + 1)) {
-    alpha[p] ~ normal(0, 2.5);
-  }
+  alpha ~ normal(0, 2.5);
   
   // likelihood
   Y ~ bernoulli_logit(X * alphaZ + A * alphaA);
@@ -201,20 +211,23 @@ model {
 \small
 ```{r, eval = FALSE, echo = TRUE}
 generated quantities {
-  // weights for the bootstrap
-  int<lower=0> counts[N] = multinomial_rng(boot_probs, N);
+  // row index to be sampled for bootstrap
+  int row_i;
 
   // calculate ATE in the bootstrapped sample
   real ATE = 0;
   vector[N] Y_a1;
   vector[N] Y_a0;
   for (n in 1:N) {
+    // sample baseline covariates
+    row_i = categorical_rng(boot_probs);
+    
     // sample Ya where a = 1 and a = 0
-    Y_a1[n] = bernoulli_logit_rng(X[n] * alphaZ + alphaA);
-    Y_a0[n] = bernoulli_logit_rng(X[n] * alphaZ);
+    Y_a1[n] = bernoulli_logit_rng(X[row_i] * alphaZ + alphaA);
+    Y_a0[n] = bernoulli_logit_rng(X[row_i] * alphaZ);
 
-    // add contribution of this observation
-    ATE = ATE + (counts[n] * (Y_a1[n] - Y_a0[n]))/N;
+    // add contribution of this observation to the ATE
+    ATE = ATE + (Y_a1[n] - Y_a0[n])/N;
   }
 }
 ```
@@ -224,13 +237,24 @@ generated quantities {
 
 - Remember: we want $\mathbb{E}\left[ Y_1 \right] - \mathbb{E}\left[ Y_1 \right]$, which marginalizes over $\mathbf{Z}$
 
-- Weighted average of causal effects for different $\mathbf{Z}$ values (like $P(Z=z)$ in the frequentist g-formula)
+- Weighted average of causal effects for different $\mathbf{Z}$ values (like $P(\mathbf{Z}=\mathbf{z})$ in the frequentist g-formula)
 
-- Weights can be $0$, $1/N$, $2/N$, $\dots$, $1$
+- On average, bootstrapped data sets will have same $P(\mathbf{Z}=\mathbf{z})$ as in the main data set
 
-- Not quite a bootstrap sample, but conceptually similar
+# Switching gears: mediation analysis
 
-# Mediation analysis
+\begin{figure}
+\begin{center}
+\begin{tikzpicture}[node distance = 1cm]
+\node (A) {$A$};
+\node[right=of A] (M) {$M$};
+\node[right=of M] (Y) {$Y$};
+\draw[->] (A) -- (M);
+\draw[->] (M) -- (Y);
+\draw[->] (A) to [out=330,in=210] (Y);
+\end{tikzpicture}
+\end{center}
+\end{figure}
 
 - Mediation analysis seeks to understand more about causal mechanisms of actions
 
@@ -239,8 +263,6 @@ generated quantities {
     - Part enacted through other pathways (natural direct; NDE)
 
 - Policymakers want to target the causal paths with biggest impact
-
-- Variations of mediation can be useful for policy where "exposure" is non-manipulable
 
 # A mediation example
 
@@ -261,7 +283,7 @@ generated quantities {
 \end{center}
 \end{figure}
 
-- Nothing in particular assumed about distribution of $Z$
+- Nothing in particular assumed about distribution of $\mathbf{Z}$
 
 - Binary treatment $A$
 
@@ -273,13 +295,13 @@ generated quantities {
 
 Assume $M$ and $Y$ are generated according to logistic models:
 
-\[ \mathrm{logit}\left( P(M_{i}=1|A_i, Z_i) \right) = \alpha_0 + \alpha_A A_i + \boldsymbol{\alpha}_Z' \mathbf{Z}_i \]
+\[ \mathrm{logit}\left( P(M_{i}=1|A_i, Z_i) \right) = \beta_0 + \boldsymbol{\beta}_Z' \mathbf{Z}_i + \beta_A A_i \]
 
-\[ \mathrm{logit}\left( P(Y_{i}=1|A_i, M_i, Z_i) \right) = \alpha_0 + \alpha_A A_i + \boldsymbol{\alpha}_Z' \mathbf{Z}_i \]
+\[ \mathrm{logit}\left( P(Y_{i}=1|A_i, M_i, Z_i) \right) = \alpha_0 + \boldsymbol{\alpha}_Z' \mathbf{Z}_i + \alpha_A A_i + \alpha_M M_i \]
 
 # Mediation: code
 
-[https://github.com/lcomm/stancon2018/mediation_mc.stan](https://github.com/lcomm/stancon2018/mediation_mc.stan)
+[\textcolor{blue}{https://github.com/lcomm/stancon2018/mediation\_mc.stan}](https://github.com/lcomm/stancon2018/mediation_mc.stan)
 
 Changes to data and model blocks are the addition of a model for $M$
 
@@ -303,7 +325,7 @@ model {
 
 # Mediation: code
 
-[https://github.com/lcomm/stancon2018/simple_mc.stan](https://github.com/lcomm/stancon2018/mediation_mc.stan)
+[\textcolor{blue}{https://github.com/lcomm/stancon2018/mediation\_mc.stan}](https://github.com/lcomm/stancon2018/mediation_mc.stan)
 
 Calculation of NDE is done in `generated quantities` block:
 
@@ -311,20 +333,20 @@ Calculation of NDE is done in `generated quantities` block:
 ```{r, eval = FALSE, echo = TRUE}
 // calculate NDE in the bootstrapped sample
 real NDE = 0;
-vector[N] M_a0;
-vector[N] Y_a1Ma0;
-vector[N] Y_a0Ma0;
+...
 for (n in 1:N) {
+  ...
   // sample Ma where a = 0
-  M_a0[n] = bernoulli_logit_rng(X[n] * betaZ);
+  M_a0[n] = bernoulli_logit_rng(X[row_i] * betaZ);
 
   // sample Y_(a=1, M=M_0) and Y_(a=0, M=M_0)
-  Y_a1Ma0[n] = bernoulli_logit_rng(X[n] * alphaZ + M_a0[n] * alphaM + 
-                                   alphaA);
-  Y_a0Ma0[n] = bernoulli_logit_rng(X[n] * alphaZ + M_a0[n] * alphaM);
+  Y_a1Ma0[n] = bernoulli_logit_rng(X[row_i] * alphaZ + 
+                                   M_a0[n] * alphaM + alphaA);
+  Y_a0Ma0[n] = bernoulli_logit_rng(X[row_i] * alphaZ + 
+                                   M_a0[n] * alphaM);
 
   // add contribution of this observation to the bootstrapped NDE
-  NDE = NDE + (counts[n] * (Y_a1Ma0[n] - Y_a0Ma0[n]))/N;
+  NDE = NDE + (Y_a1Ma0[n] - Y_a0Ma0[n])/N;
 }
 ```
 \normalsize
@@ -417,7 +439,8 @@ Obviously, parameters involving $U$ are unidentifiable in the original data set
 
 # Unmeasured confounding in mediation: code
 
-[https://github.com/lcomm/stancon2018/mediation_unmeasured_mc.stan](https://github.com/lcomm/stancon2018/mediation_unmeasured_mc.stan)
+[
+\small{\textcolor{blue}{https://github.com/lcomm/stancon2018/mediation\_unmeasured\_mc.stan}}](https://github.com/lcomm/stancon2018/mediation_unmeasured_mc.stan)
 
 Likelihood in model block becomes a mixture:
 

@@ -88,7 +88,7 @@ $$
 
 The Bayesian analog to the g-formula formulates the distribution of the counterfactual $Y_a$ as a posterior predictive value, integrating over the parameters $\boldsymbol{\theta}$ as well as the confounder distribution. A more complete explanation of the Bayesian g-formula can be found in Keil et al [@keil2015bayesian].
 
-\[ p(y_a| o)
+\[ p(\tilde{y}_a| o)
 = \int \int p(\tilde{y} | a, \tilde{\mathbf{z}}, \theta) p(\tilde{\mathbf{z}} | \boldsymbol{\theta}) p(\boldsymbol{\theta} | o) 
 d\boldsymbol{\theta} d\tilde{\mathbf{z}} \]
 
@@ -152,7 +152,8 @@ The Stan code to obtain the ATE is shown below. One could adopt Stan's default f
 ```{r, cache = TRUE}
 # Fit model
 suppressPackageStartupMessages(library("rstan"))
-rstan_options(auto_write = TRUE, mc.cores = parallel::detectCores())
+rstan_options(auto_write = TRUE)
+options(mc.cores = parallel::detectCores())
 fit1 <- stan(file = "simple_mc.stan", data = stan_dat)
 
 # Regression coefficients not very different from frequentist model
@@ -227,7 +228,7 @@ med_dat <- list(N = nrow(med_df),
 
 The mediator gets added to the outcome model:
 $$
-\mathrm{logit}\left( P(Y_{i}=1|A_i,M_i,\mathbf{Z}_i) \right) = \alpha_0 + \boldsymbol{\alpha}_Z' \mathbf{Z}_i + \alpha_M M_i + \alpha_A A_i
+\mathrm{logit}\left( P(Y_{i}=1|A_i,M_i,\mathbf{Z}_i) \right) = \alpha_0 + \boldsymbol{\alpha}_Z' \mathbf{Z}_i + \alpha_A A_i + \alpha_M M_i 
 $$
 
 In addition to the $Y$ model, we also adopt a logistic model for $M$. 
@@ -346,7 +347,7 @@ $$
 \sum_{u=0}^1 
 \left(\pi^Y_i(u)\right)^{y_i} \left(1 - \pi^Y_i(u)\right)^{1 - y_i}
 \left(\pi^M_i(u)\right)^{m_i} \left(1 - \pi^M_i(u)\right)^{1 - m_i}
-P(U_i = u | \boldsymbol{\gamma}, \mathbf{z}_i, a_i)
+P(U_i = u | \boldsymbol{\gamma}, \mathbf{z}_i)
 \right]
 $$
 where $\pi^Y_i(u) = P(Y_i = 1 | \boldsymbol{\alpha}, \mathbf{Z}_i, A_i, M_i, U_i = u)$ and $\pi^M_i(u) = P(M_i = 1 | \boldsymbol{\beta}, \mathbf{Z}_i, A_i, U_i = u)$.
